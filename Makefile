@@ -11,19 +11,12 @@ lf: f1.c lf.c l1.c f.h lf.c lf1.c lf.h
 
 
 test: l f lf
-	@echo Fibonacci 20 in FORTH executing LISP 
-	./lf c2.f c2.l
-
-test-all: l f lf
 	@echo Fibonacci 20 in LISP 
 	./l c.l
 	@echo Fibonacci 20 in FORTH 
 	./f c.f
 	@echo Fibonacci 20 in FORTH executing LISP 
 	./lf lf.f c.l
-
-test2: lf
-	./lf c2.f c2.l
 
 clean:
 	rm -f l f lf
