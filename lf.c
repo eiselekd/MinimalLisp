@@ -2,6 +2,7 @@
  * Released under BSD-license */
 
 /* reuse lisp code */
+#define NOFOUT
 /*#define DBG*/
 #include "lf1.c"
 

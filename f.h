@@ -1,3 +1,4 @@
+
 /* atomic operators, lots of redundant or unneeded operators... */
 CODE (0,"nil",      0,">@markbeg",0,0,NIL,   PUSH(nil););
 CODE (0,"car",      0,"@",0,0,CAR,           v*e=POP;PUSH(car(e)););    

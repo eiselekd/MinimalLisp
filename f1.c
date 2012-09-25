@@ -97,6 +97,12 @@ int key(fctx *cctx);
 v *word(fctx *cctx);
 v *wordStr(fctx *cctx);
 
+#ifndef NOFOUT
+#define FPRINT(...) printf(__VA_ARGS__)
+#else
+#define FPRINT(...) 
+#endif
+
 #define CODE(in,n,ia0,a0,ia1,a1,f,c)             \
     v *                                          \
     fop_##f(fctx *cctx) {                        \
@@ -112,7 +118,7 @@ v *wordStr(fctx *cctx);
         long a, b;                               \
         a = tonum(POP); b = tonum(POP);          \
         PUSH(mkInt(op));                         \
-        printf("[41m%ld%s%ld=%ld",a,n,b,(long)(op)); printf("[49m\n"); \
+        FPRINT("[41m%ld%s%ld=%ld",a,n,b,(long)(op)); FPRINT("[49m\n"); \
         dbgprint(cctx,#f);                                          \
         return NEXT(cctx);                       \
     };                                           \
@@ -138,6 +144,7 @@ dbgstk(fctx *cctx, v *c) {
 void
 dbgprint(fctx *cctx, char *n) {
     v *c, *e = cctx->env, *w, *cw = 0;
+#ifdef DBG
     for (e = cctx->env;e; e = cdr(e)) {
         c = cdar(e);
         for (;c; c = cdr(c)) {
@@ -153,6 +160,7 @@ found:
     FPRINTF(FDBG, " stk:");
     dbgstk(cctx,cctx->stk);
     FPRINTF(FDBG, "\n",n);
+#endif
 }
 
 

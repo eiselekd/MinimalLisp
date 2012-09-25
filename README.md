@@ -66,7 +66,6 @@ $ ./lf lf.f c.l
 Here the c-functions that use eval() from the previous minimal LISP interpreter (file l1.c) 
 are implemented in FORTH (file lf.f). The similarities between l1.c and lf.f 
 should be obviouse.
-It takes around 1 minute to calculate fibonacci 20!
 
 Conclusion and todo
 -------------------
