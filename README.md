@@ -74,5 +74,10 @@ Started a minimal solution in the end it turns out to be quite complex anyway.
 Maybe the best solution is to implement all in c. The recursive path could be 
 modeled inside an explicite state struct and the evalution inside a flat loop.
 
+Step 4:
+-------
+Fibonacci (file flat.c) LISP evaluator in c using flat evaluation loop
+like in PERL.
+
 
 
