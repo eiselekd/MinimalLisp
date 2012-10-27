@@ -91,7 +91,7 @@ long tonum(struct v *v) { if (!v) return 0;switch(v->tag) { case INT: return v->
 #define cadr(v) car(cdr(v)) 
 #define cadar(v) car(cdr(car(v)))
 #define caddr(v) car(cdr(cdr(v)))
-v *rplac(v *a, int ad, v *b) { ad ? ((a)->u.cons.d = b) : ((a)->u.cons.a = b); return b; }
+v *rplac(v *a, int ad, v *b) { if (a) { ad ? ((a)->u.cons.d = b) : ((a)->u.cons.a = b);}; return b; }
 #define rplaca(a,b) rplac(a,0,b)
 #define rplacd(a,b) rplac(a,1,b)
 #ifndef RESOLVE_FOP
@@ -403,15 +403,23 @@ unique(ctx *cctx, char *s, int l)
     return v;
 }
 
+#define nth(v,i) _nth(v,i,0)
+
 v *
-nth(v *v, int i)
+_nth(v *v, int i, int f)
 {
-    while(v && (i-- > 0)) 
-        v = cdr(v);
+    struct v *r;
+    if (f && !v) {
+        v = mkCons(0,0);
+    }
+    while(v && (i-- > 0)) {
+        if (!(v = cdr(r = v))) {
+            if (f)
+                rplacd(r, v = mkCons(0,0));
+        }
+    }
     return v;
 }
-
-
 
 v *
 nreverse(v *v)

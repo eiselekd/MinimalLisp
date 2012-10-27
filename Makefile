@@ -23,4 +23,4 @@ test: l f lf
 	./flat c.l
 
 clean:
-	rm -f l f lf
+	rm -f l f lf flat
