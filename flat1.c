@@ -49,6 +49,7 @@ eval_flat(flctx *ctx, struct v *v)
         APPLY_0,
         APPLY_1,
         APPLY_2,
+        APPLY_3,
         IF_0,
         IF_1,
         IF_2,
@@ -68,6 +69,7 @@ eval_flat(flctx *ctx, struct v *v)
     struct {
         char *n; int state;
     } opm[] = {
+        /* recursing functions */
         { "let", LET_0 },
         { "setq", SETQ_0 },
         { "define", DEFINE_0 },
@@ -284,17 +286,18 @@ local scope: 0(ret): return arg
                 if (FN_ARGBINDP(v))
                     benv = evbind(car(func(v)), a, benv);
                 PUSH_ENV(benv);
-                RCALL_EVLIST(APPLY_2, cdr(func(v)));
+                RCALL_EVLIST(APPLY_3, cdr(func(v)));
                 break;
             default:
                 fprintf(stderr, "Cannot apply to "); print((struct ctx*)ctx, stderr, v); fprintf(stderr, "\n"); 
                 goto ret;
             }
             break;
-            
+
+        case APPLY_3:
+            POP_ENV(); /* fall through */
         case APPLY_2:
             S_SET(0, S(1));                              /* APPLY_2: r = ... */
-            POP_ENV();
             goto ret;
 
             /*
