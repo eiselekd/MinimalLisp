@@ -45,6 +45,7 @@ Step 1:
 -------
 Fibonacci (file c.l) running in a minimal LISP interpreter (prog ./l). This interpreter 
 uses c-recursion. 
+
     $ make 
     $ ./l c.l
 
@@ -52,8 +53,10 @@ Step 2:
 ------- 
 Fibonacci (file c.f) running in a minimal FORTH interpreter (prog ./f). This interpreter
 is non-recursive. 
+
     $ make 
     $ ./f c.f
+
 The forth interpreter uses lists to model stacks and words, so it 
 looks like LISP but the interpreter is FORTH like.
 
@@ -61,8 +64,10 @@ Step 3:
 -------
 Fibonacci (file c.l) LISP evaluator written in FORTH (file lf.f) executing in a
 extended minimal FORTH interpreter (prog lf). This interpreter is non-recursive.
+
     $ make 
     $ ./lf lf.f c.l
+
 Here the c-functions that use eval() from the previous minimal LISP interpreter (file l1.c) 
 are implemented in FORTH (file lf.f). The similarities between l1.c and lf.f 
 should be obviouse.
