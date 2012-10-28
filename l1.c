@@ -18,6 +18,7 @@ enum { CONS, INT, STR, SYM, FUNC, OP, /* f1.c: */ FWORD, FOP };
 struct ctx;
 struct fctx;
 struct w;
+typedef struct v*(*opfn)(struct ctx *, struct v*, struct v*);
 typedef struct v {
     unsigned int tag : 4;
     unsigned int flags : 28;
@@ -30,7 +31,7 @@ typedef struct v {
         struct {
             struct v *f, *env;
         } fn;
-        struct v*(*p)(struct ctx *, struct v*, struct v*);
+        opfn p;
         /* f1.c */
         struct w *fword;
         struct v*(*fop)(struct fctx *);

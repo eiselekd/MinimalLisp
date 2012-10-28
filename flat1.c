@@ -12,31 +12,31 @@ typedef struct flctx {
     v *rstk, *estk;
 } flctx;
 
-#define RSTK ctx->rstk
-#define ESTK ctx->estk
-#define RSTKRET caar(RSTK)
+#define RSTK     ctx->rstk
+#define ESTK     ctx->estk
+#define RSTKRET  caar(RSTK)
 #define RSTKSCP0 cdar(RSTK)
 #define RSTKSCP1 cdar(cdr(RSTK))
 
-#define RCALL(l,a) RSTK = mkCons(mkCons(mkInt(l),mkCons(0,mkCons(0,a))),RSTK);
-#define RRET state = num(RSTKRET); rplaca(_nth(RSTKSCP1,1,1), S(0)); RSTK = cdr(RSTK)
+#define RCALL(l,a)           RSTK = mkCons(mkCons(mkInt(l),mkCons(0,mkCons(0,a))),RSTK);
+#define RRET                 state = num(RSTKRET); rplaca(_nth(RSTKSCP1,1,1), S(0)); RSTK = cdr(RSTK)
 #define RCALL_EVAL(l,v)      RCALL(l,mkCons(v,0)); state = EVAL_0;
 #define RCALL_EVLIST(l,v)    RCALL(l,mkCons(v,0)); state = EVLIST_0;
 #define RCALL_EVARGS(l,v)    RCALL(l,mkCons(v,0)); state = EVARGS_0;
 #define RCALL_APPLY(l,f,a)   RCALL(l,mkCons(f,mkCons(a,0))); state = APPLY_0;
 
-#define S(i) car(nth(RSTKSCP0,i))
-#define S_SET(i,v) rplaca(_nth(RSTKSCP0,i,1),v)
+#define S(i)        car(nth(RSTKSCP0,i))
+#define S_SET(i,v)  rplaca(_nth(RSTKSCP0,i,1),v)
 #define PUSH_ENV(e) ESTK = mkCons(e,ESTK)
-#define POP_ENV() ESTK = cdr(ESTK)
-#define ENV car(ESTK)
+#define POP_ENV()   ESTK = cdr(ESTK)
+#define ENV         car(ESTK)
 
 int
 eval_flat(flctx *ctx, struct v *v) 
 {
     FILE *f; char *m = 0, *lft; long l, val; int c, ad = 1, i, state = 0; 
-    struct v *n, *r, *benv, *e, *a;
-    
+    struct v *n, *r, *benv, *e, *a; opfn opf;
+
     enum {
         EVLIST_0,
         EVLIST_1,
@@ -52,6 +52,11 @@ eval_flat(flctx *ctx, struct v *v)
         IF_0,
         IF_1,
         IF_2,
+        DEFINE_0,
+        DEFINE_1,
+        WHILE_0,
+        WHILE_1,
+        WHILE_2,
         LET_0,
         LET_1,
         LET_2,
@@ -60,8 +65,32 @@ eval_flat(flctx *ctx, struct v *v)
         QUIT_0,
     };
 
+    struct {
+        char *n; int state;
+    } opm[] = {
+        { "let", LET_0 },
+        { "setq", SETQ_0 },
+        { "define", DEFINE_0 },
+        { "if", IF_0 },
+        { "while", WHILE_0 },
+        { 0, 0 }
+    };
+
     PUSH_ENV(ctx->lctx.env);
     RCALL_EVLIST(QUIT_0, v);
+    
+    for (i = 0; i < ((sizeof(opm) / sizeof(opm[0])) - 1); i++) {
+        struct v *p, *n = unique(&ctx->lctx, opm[i].n, strlen(opm[i].n));
+        if ((v = assq(n, ctx->lctx.env))) {
+            p = cdr(v);
+            if ((p->tag == OP && 
+                 !OP_ARGEVALP(p))) {
+                op(p) = (opfn) (long)opm[i].state;
+            } else {
+                printf("!Cannot remap: %s\n", opm[i].n);
+            }
+        }
+    }
     
     while (1) {
         switch(state) {
@@ -164,12 +193,12 @@ local scope: 0(ret): return arg
                 S_SET(0, v);                      /* r = e */
                 goto ret;
             case SYM:
-                if ((v = assq(v, ENV))) {
-                    v = cdr(v);
+                if ((e = assq(v, ENV))) {
+                    e = cdr(e);
                 } else {
-                    fprintf(stderr, "Undefined symbol \"%s\"\n", str(e));
+                    fprintf(stderr, "Undefined symbol \"%s\"\n", str(v));
                 }
-                S_SET(0, v);
+                S_SET(0, e);
                 goto ret;
             case FUNC: default:
                 goto ret;
@@ -238,7 +267,15 @@ local scope: 0(ret): return arg
             v = S(2);
             switch(v->tag) {
             case OP:
-                r = op(v)(&ctx->lctx, a, ENV);
+                opf = op(v);
+                if (((long)opf) >= 0 && ((long)opf) <= QUIT_0) {
+                    RCALL(APPLY_2,mkCons(a,0)); 
+                    state = (long)opf;
+                } else {
+                    r = opf(&ctx->lctx, a, ENV);
+                    S_SET(0,r);
+                    goto ret;
+                }
                 break;
             case FUNC:
                 benv = ENV;
@@ -258,7 +295,7 @@ local scope: 0(ret): return arg
         case APPLY_2:
             S_SET(0, S(1));                              /* APPLY_2: r = ... */
             POP_ENV();
-            break;
+            goto ret;
 
             /*
 v*
@@ -280,11 +317,79 @@ local scope: 0(ret): return arg
             RCALL_EVAL(IF_1, car(S(2))) ;
             break;
         case IF_1:
-            v = S(1) ? cadr(S(2)) : caddr(S(2)); /* IF_1 */
+            v = tonum(S(1)) ? cadr(S(2)) : caddr(S(2)); /* IF_1 */
             RCALL_EVAL(IF_2, v);
             break;
         case IF_2:    
             S_SET(0,S(1));     /* IF_2: r = ... */
+            goto ret;
+           
+            /*
+v*
+whileFunc(ctx *cctx, v *a, v *env ) 
+{
+    v *r = 0, *n, *l;
+    while(eval(cctx,car(a),env)) r = evlist(cctx, cdr(a),env);
+    return r;
+}
+local scope: 0(ret): return arg
+             1(call-ret): return arg from called func
+             2(arg-a): iteration var
+             3(n): local n
+             4(n): local env
+             (env on env stack)
+            */
+                
+        case WHILE_0:
+            S_SET(0,0);                          /* WHILE_0 */
+            
+        whileloop:
+            RCALL_EVAL(WHILE_1, car(S(2))) ;     /* eval(cctx,car(a),env) */
+            break;
+        case WHILE_1:
+            if (!tonum(S(1)))                    /* WHILE_1:  while(eval(cctx,car(a),env)) */
+                goto ret;
+            RCALL_EVLIST(WHILE_2, cdr(S(2))) ;   /* evlist(cctx, cdr(a),env) */
+            break;
+        case WHILE_2:
+            S_SET(0,S(1));                       /* WHILE_2: r = evlist(cctx, cdr(a),env) */
+            goto whileloop;
+
+            /*
+ 
+v*
+defineFunc(ctx *cctx, v *a, v *env ) 
+{
+    v *r = 0, *n, *c;
+    if (a) {
+        r = mkCons(car(a), 0);
+        rplacd(cctx->env, mkCons(r, cdr(cctx->env)));
+        r = rplacd(r, eval(cctx,cadr(a),env));
+    }
+    return r;
+}
+
+local scope: 0(ret): return arg
+             1(call-ret): return arg from called func
+             2(arg-a): v iteration var
+             3(n): local n
+             4(n): local env
+             (env on env stack)
+
+            */
+
+        case DEFINE_0:
+            S_SET(0,0);                          /* DEFINE_0 */
+            if (!(v = S(2)))
+                goto ret;
+            v = mkCons(car(S(2)), 0);            /* r = mkCons(car(a), 0); */
+            S_SET(3,v);
+            rplacd(ctx->lctx.env, mkCons(v, cdr(ctx->lctx.env))); /*  rplacd(cctx->env, mkCons(r, cdr(cctx->env))); */
+            RCALL_EVAL(DEFINE_1, cadr(S(2))) ;
+            break;
+        case DEFINE_1:
+            v = rplacd(S(3), S(1));              /*  r = rplacd(r, eval(cctx,cadr(a),env)); */
+            S_SET(0, v);
             goto ret;
             
             /*
@@ -369,12 +474,13 @@ local scope: 0(ret): return arg
                 rplacd(v, S(1));
             }
             goto ret;
-            
+        case QUIT_0:
+            goto ex;
         ret: 
             RRET;
         }
     }
-    
+ex:    
     return 0;
 }
 
