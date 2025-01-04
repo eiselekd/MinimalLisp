@@ -50,9 +50,12 @@ v *assq(v *e, v *env) ;
 #define FN_ARGEVALP(v) ((v)->flags & (1<<0))
 #define FN_FUNCENVP(v) ((v)->flags & (1<<1))
 #define FN_ARGBINDP(v) ((v)->flags & (1<<2))
+#define QUOTED(v)      ((v)->flags & (1<<3))
 #define FN_ARGEVAL_SET(v) (v)->flags |= ((1)<<0)
 #define FN_FUNCENV_SET(v) (v)->flags |= ((1)<<1)
 #define FN_ARGBIND_SET(v) (v)->flags |= ((1)<<2)
+#define QUOTE(v)          (v)->flags |= ((1)<<3)
+#define QUOTEV(v,i)       ((i) ? ((v)->flags |= ((1)<<3)) : ((v)->flags &= ~((1)<<3)))
 #define OP_ARGEVALP(v) FN_ARGEVALP(v)
 #define OP_ARGEVAL_SET(v) FN_ARGEVAL_SET(v)
 /* uesd by f1.c */
@@ -74,6 +77,7 @@ v *_mkStr(char *s, int l, int t) { v *v = mkV(t); v->u.str = (char *)malloc(l+1)
 int eq(v *a, v* b) { return a==b ? 1 : 0; }
 v *car(v *e) { return e ? (e)->u.cons.a : 0 ; }
 v *cdr(v *e) { return e ? (e)->u.cons.d : 0 ; }
+v *quote(v *e) { QUOTE(e); return e; }
 #define mkStr(s, l) _mkStr(s, l, STR)
 #define mkSym(s, l) _mkStr(s, l, SYM)
 #define is(v,t) ((v) && (v)->tag == t)
@@ -99,6 +103,7 @@ v *rplac(v *a, int ad, v *b) { if (a) { ad ? ((a)->u.cons.d = b) : ((a)->u.cons.
 #define RESOLVE_FOP(c,a) 0
 #endif
 char *optoa(struct ctx *cctx, struct v *);
+void rplaca_q(v *a,v *b,int q) {rplac(a,0,b); if (q) quote(b); }
 
 #define PRINT_HEX (1<<0)
 void _print(ctx *cctx, FILE *s, v *v, int flags, int max, int cur, struct v *h) {
@@ -119,6 +124,8 @@ void _print(ctx *cctx, FILE *s, v *v, int flags, int max, int cur, struct v *h) 
                 if (flags & PRINT_HEX)
                     fprintf(s, " 0x%p=", v);
                 fprintf(s," ");
+                if (QUOTED(v))
+                    fprintf(s, "'");
                 _print(cctx, s, car(v), flags, max, cur+1, h);
             }
             if (v)
@@ -331,17 +338,25 @@ eval(ctx *cctx, v *e, v *env)
         r = e;
         break;
     case SYM:
-        if ((r = assq(e, env))) {
-            r = cdr(r);
+        if (QUOTED(e)) {
+            r = e;
         } else {
-            fprintf(stderr, "Undefined symbol \"%s\"\n", str(e));
+            if ((r = assq(e, env))) {
+                r = cdr(r);
+            } else {
+                fprintf(stderr, "Undefined symbol \"%s\"\n", str(e));
+            }
         }
         break;
     case FUNC:
         break;
     case CONS:
-        f = eval(cctx, car(e), env);
-        r = apply(cctx, f, cdr(e), env);
+        if (QUOTED(e)) {
+            r = evargs(cctx, e, env);
+        } else {
+            f = eval(cctx, car(e), env);
+            r = apply(cctx, f, cdr(e), env);
+        }
         break;
     }
     return r;
@@ -426,6 +441,7 @@ v *
 nreverse(v *v)
 {
     struct v *r = 0, *h, *l = v, *lt, *c, *p, *n, *t;
+    int tq = 0;
     h = l;
     lt = c = cdr(l);
     if (c) {
@@ -441,9 +457,12 @@ nreverse(v *v)
             rplacd(lt, c);
         }
         /* swap head,c */
+        tq = QUOTED(h);
         t = car(h);
+        QUOTEV(h, QUOTED(c));
         rplaca(h, car(c));
         rplaca(c, t);
+        QUOTEV(c, tq);
     }
     return h;
 }
@@ -467,29 +486,40 @@ sreverse(v *v)
 
 v *
 scan(ctx *cctx, char *m) {
+    unsigned long scaneval = 0; int nextquote, quote = 0;
     char *lft;
     int c; v *cl = mkCons(0,0), *v, *n, *r;
     long val;
     while((c = *m)) {
+        nextquote = scaneval & 1;
         switch (c) {
         case '.':
             break;
         case '(':
             cl = mkCons(0,cl);
+            scaneval <<= 1;
+            scaneval |= quote; nextquote = quote;
             break;
         case ')':
             v = car(cl);
             cl = cdr(cl);
             r = nreverse(v);
-            rplaca(cl,mkCons(r,car(cl)));
+            rplaca_q(cl,mkCons(r,car(cl)),quote);
+            scaneval >>= 1;
             break;
         case '0': case '1': case '2': case '3': case '4': case '5':
         case '6': case '7': case '8': case '9': 
         num:
             val = strtol(m, &m, 0); m--;
-            rplaca(cl,mkCons(mkInt(val),car(cl)));
+            rplaca_q(cl,mkCons(mkInt(val),car(cl)),quote);
             break;
         case ' ': case '\n': case '\t': 
+            break;
+        case '\'':
+            nextquote = 1;
+            break;
+        case ',':
+            nextquote = 0;
             break;
         case '+': case '-': 
             if (!isdigit(m[1])) {
@@ -505,12 +535,13 @@ scan(ctx *cctx, char *m) {
                 lft = m;
                 while (isalnum(c = *++m) || strchr(SPECIAL,c));
                 v = unique(cctx, lft, m-lft); m--;
-                rplaca(cl,mkCons(v,car(cl)));
+                rplaca_q(cl,mkCons(v,car(cl)),quote);
             } else {
                 error("Invalid char '%c'\n", c);
             }
             break;
         }
+        quote = nextquote;
         m++;
     }
     v = sreverse(car(cl));
