@@ -452,6 +452,8 @@ v *
 sreverse(v *v)
 {
     struct v *r = 0, *h, *e, *l = v, *n;
+    if (!v)
+        return v;
     h = l;
     n = cdr(l);
     rplacd(l,0); 
