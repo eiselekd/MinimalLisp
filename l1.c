@@ -544,7 +544,7 @@ scan(ctx *cctx, char *m) {
             }
             break;
         }
-	scaneval |= (nextquote?0:1);
+	scaneval |= (quote?0:1);
         quote = nextquote;
         m++;
     }
