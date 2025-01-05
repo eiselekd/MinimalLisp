@@ -506,8 +506,9 @@ scan(ctx *cctx, char *m) {
             cl = cdr(cl);
             r = nreverse(v);
             rplaca_q(cl,mkCons(r,car(cl)),quote && !(scaneval&1));
-            scanquote >>= 1;
+            quote = !(scaneval&1);
 	    scaneval >>= 1;
+	    scanquote >>= 1;
 	    nextquote = scanquote & 1;
             break;
         case '0': case '1': case '2': case '3': case '4': case '5':
