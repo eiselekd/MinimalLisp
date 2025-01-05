@@ -486,26 +486,29 @@ sreverse(v *v)
 
 v *
 scan(ctx *cctx, char *m) {
-    unsigned long scaneval = 0; int nextquote, quote = 0;
+    unsigned long scanquote = 0, scaneval = 0; int nextquote, quote = 0;
     char *lft;
     int c; v *cl = mkCons(0,0), *v, *n, *r;
     long val;
     while((c = *m)) {
-        nextquote = scaneval & 1;
+        nextquote = scanquote & 1;
         switch (c) {
         case '.':
             break;
         case '(':
             cl = mkCons(0,cl);
-            scaneval <<= 1;
-            scaneval |= quote; nextquote = quote;
+            scanquote <<= 1;
+	    scaneval <<= 1;
+            scanquote |= quote; nextquote = quote;
             break;
         case ')':
             v = car(cl);
             cl = cdr(cl);
             r = nreverse(v);
-            rplaca_q(cl,mkCons(r,car(cl)),quote);
-            scaneval >>= 1;
+            rplaca_q(cl,mkCons(r,car(cl)),quote && !(scaneval&1));
+            scanquote >>= 1;
+	    scaneval >>= 1;
+	    nextquote = scanquote & 1;
             break;
         case '0': case '1': case '2': case '3': case '4': case '5':
         case '6': case '7': case '8': case '9': 
@@ -541,6 +544,7 @@ scan(ctx *cctx, char *m) {
             }
             break;
         }
+	scaneval |= (nextquote?0:1);
         quote = nextquote;
         m++;
     }
